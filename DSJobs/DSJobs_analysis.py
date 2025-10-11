@@ -208,3 +208,75 @@ for title in title_list:
         plt.show(block = False)
 
 input('Press Enter to continue...')
+
+## Ok, we have an idea of the range of salaries and how they are distributed. We have an idea of the skills most commonly expected.
+## I think maybe the next step should be to see how salaries and skills vary by industry.
+
+industries = df_filtered['industry'].dropna().unique()
+industry_counts = df_filtered['industry'].dropna().value_counts()
+
+## This time, I'll make a pie chart of industries represented in the dataset, combining industries with fewer than 20 listings into an "Other."
+## Then, I'll add a bar of the "other" slice so we can see how the smaller industries contibute without making the pie chart unreadable.
+
+from matplotlib.patches import ConnectionPatch
+
+big_ind = industry_counts[industry_counts >= 20]
+lil_ind = industry_counts[industry_counts < 20]
+big_ind['Other'] = lil_ind.sum()
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+
+## pie chart params
+pie_labels = big_ind.index
+pie_sizes = big_ind.values
+colors = plt.cm.tab20.colors[:len(pie_labels)]
+explode = [0.1 if size == big_ind['Other'] else 0 for size in pie_sizes]
+angle = -180*pie_sizes.min()
+## took me a while to understand this next part, but this will capture the slices from the .pie() call and junk the other outputs into var '_'.
+wedges, *_ = ax1.pie(pie_sizes, labels=pie_labels, autopct='%1.1f%%', startangle=angle, colors=colors, explode=explode)
+
+## bar chart params
+bar_labels = lil_ind.index
+bar_sizes = [v / sum(lil_ind.values) for v in lil_ind.values]
+bottom = 1
+width = 0.2
+
+## stack bars to match legend order
+for s, (height, label) in enumerate(reversed([*zip(bar_sizes, bar_labels)])):
+    bottom -= height
+    bc = ax2.bar(0, height, width, bottom=bottom, label=label, color='C0', alpha = 0.1 + 0.25 * s)
+    ## create bars
+    ax2.bar_label(bc, labels = [f"{height:.0%}"], label_type = 'center')
+
+## bar chart info
+ax2.set_title('Industries with Fewer than 20 Listings')
+ax2.legend(loc = 'best', bbox_to_anchor=(1, 0.965))
+ax2.axis('off')
+ax2.set_xlim(-2.5*width, 2.5*width)
+
+## Now we draw some lines connecting the pie to the bar chart.
+## Not sure that this will be drawing to the correct spots, but we'll see.
+theta1, theta2 = wedges[4].theta1, wedges[4].theta2
+center, r = wedges[4].center, wedges[4].r
+bar_height = sum(bar_sizes)
+
+## draw top connecting line
+x = r * np.cos(np.pi / 180 * theta2) + center[0]
+y = r * np.sin(np.pi / 180 * theta2) + center[1]
+con = ConnectionPatch(xyA=(-width / 2, bar_height), coordsA=ax2.transData,
+                      xyB=(x, y), coordsB=ax1.transData)
+con.set_color([0, 0, 0])
+con.set_linewidth(4)
+ax2.add_artist(con)
+
+## draw bottom connecting line
+x = r * np.cos(np.pi / 180 * theta1) + center[0]
+y = r * np.sin(np.pi / 180 * theta1) + center[1]
+con = ConnectionPatch(xyA=(-width / 2, 0), coordsA=ax2.transData,
+                      xyB=(x, y), coordsB=ax1.transData)
+con.set_color([0, 0, 0])
+ax2.add_artist(con)
+con.set_linewidth(4)
+
+plt.show(block = False)
+input('Press Enter to exit...')
