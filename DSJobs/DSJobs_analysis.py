@@ -43,13 +43,13 @@ df['Cleaned_Salary'] = df['salary'].apply(salary_clean).astype(float)
 
 ## Now that I have cleaned up salary info, I think maybe we'll make a histogram of the salaries.
 ## I'll omit the top three salaries to avoid skewing the histogram too much.
-df_filtered = df[df['Cleaned_Salary'] < 600000]
-#df_filtered['Cleaned_Salary'].plot.hist(bins=30, edgecolor='black')
-#plt.xlabel('Salary')
-#plt.ylabel('Frequency')
-#plt.title('Distribution of Data Scientist Salaries')
-#plt.grid(True)
-#plt.show(block = False)  
+df_filtered = df[df['Cleaned_Salary'] < 600000].copy()
+df_filtered['Cleaned_Salary'].plot.hist(bins=30, edgecolor='black')
+plt.xlabel('Salary')
+plt.ylabel('Frequency')
+plt.title('Distribution of Data Scientist Salaries')
+plt.grid(True)
+plt.show(block = False)  
 
 ## With the omission of outliers, I'm seeing what I believe to be two overlapping normal distributions.
 ## I'd like to see what the distribution of salaries is like when broken down by experience level.
@@ -70,23 +70,23 @@ plt.show(block = False)
 ## For now, I think I'd like to make histograms of salaries by experience level all shown together in one window as separate plots.
 
 experience_levels = df_filtered['seniority_level'].dropna().unique()
-#fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(15, 5), sharey=False)
-#axes = axes.flatten()
-#for ax, level in zip(axes, experience_levels):
-#    sns.histplot(data=df_filtered[df_filtered['seniority_level'] == level], x='Cleaned_Salary', bins=30, kde=True, ax=ax)
-#    ax.set_title(level)
-#    ax.set_xlabel('Salary')
-#    ax.set_ylabel('Density')
+fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(15, 5), sharey=False)
+axes = axes.flatten()
+for ax, level in zip(axes, experience_levels):
+    sns.histplot(data=df_filtered[df_filtered['seniority_level'] == level], x='Cleaned_Salary', bins=30, kde=True, ax=ax)
+    ax.set_title(level)
+    ax.set_xlabel('Salary')
+    ax.set_ylabel('Density')
 
-#plt.suptitle('Salary Distribution by Experience Level')
-#plt.tight_layout()
-#plt.show(block = False)
+plt.suptitle('Salary Distribution by Experience Level')
+plt.tight_layout()
+plt.show(block = False)
 
 
 
 ## These plots make it clearer that "junior" has far fewer records than the other categories, and distributions are not exactly normal.
 ## I'll try recategorizing seniority_level into just "junior" and "senior" (combining midlevel and senior) and see how that looks.
-df_filtered['Seniority_Binary'] = df_filtered['seniority_level'].dropna().apply(lambda x: 'junior' if x == 'junior' or x == 'midlevel' else 'senior')
+df_filtered.loc[:, 'Seniority_Binary'] = df_filtered['seniority_level'].apply(lambda x: 'junior' if x in ['junior', 'midlevel'] else 'senior' if pd.notna(x) else np.nan)
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 5), sharey=False)
 axes = axes.flatten()
 for ax, level in zip(axes, ['junior', 'senior']):
@@ -109,27 +109,26 @@ input('Press Enter to exit...')
 ## I took a look at the skills data, and I'm seeing that most entries are comma-separated lists of skills.
 ## What I'd like to do is understand which individual skills appear most often for 'junior' roles. I'll look at 'senior' roles later.
 from collections import Counter
+jr_subset = df_filtered[df_filtered['Seniority_Binary'] == 'junior']['skills'].dropna()
 jr_skill_counter = Counter()
-for skills in df_filtered[df_filtered['Seniority_Binary'] == 'junior']['skills'].dropna():
+for skills in jr_subset:
     skill_list = [skill.strip(" []'\"").lower() for skill in skills.split(',') if skill.strip(" []'\"")]
     jr_skill_counter.update(skill_list)
 most_common_jr_skills = jr_skill_counter.most_common(25)
-#print("Most common skills for junior roles:")
-#for skill, count in most_common_jr_skills:
-#    print(f"{skill}: {count}")
+
 
 ## Okay... that was a bit of a doozy (is that how you spell that word?). I had some issues with stripping characters effectively, but I got there.
 ## I suppose now it would makes sense to just modify that block to make a list also for senior roles.
+sr_subset = df_filtered[df_filtered['Seniority_Binary'] == 'senior']['skills'].dropna()
 sr_skill_counter = Counter()
-for skills in df_filtered[df_filtered['Seniority_Binary'] == 'senior']['skills'].dropna():
+for skills in sr_subset:
     skill_list = [skill.strip(" []'\"").lower() for skill in skills.split(',') if skill.strip(" []'\"")]
     sr_skill_counter.update(skill_list)
 most_common_sr_skills = sr_skill_counter.most_common(25)
-#print("Most common skills for senior roles:")
-#for skill, count in most_common_sr_skills:
-#    print(f"{skill}: {count}")
+
 
 ## Now we can compare the top skills for both levels.
+print('\nTop Skills for Junior and Senior DS Roles')
 print(f"{'No.':<5} {'Junior Skill':<20} {'Count':<7} {'Senior Skill':<20} {'Count':<7}")
 print("-" * 70)
 for i in range(max(len(most_common_jr_skills), len(most_common_sr_skills))):
@@ -154,6 +153,7 @@ jr_skill_salary_summary = {skill: (np.mean(salaries), np.median(salaries), np.st
 jr_skill_salary_summary_sorted = sorted(jr_skill_salary_summary.items(), key=lambda x: x[1][0], reverse=True)
 ## Now we have a dictionary containing skills and summary stats, sorted by mean salary.
 ## Let's print out a table with the top 25 skills and their associated salary stats.
+print('\nJunior Level DS Skills and Salary Stats')
 print(f"{'No.':<5} {'Skill':<20} {'Mean Salary':<15} {'Median Salary':<15} {'Std Dev':<10} {'Count':<7}")
 print("-" * 80)
 for i, (skill, (mean_salary, median_salary, std_dev, count)) in enumerate(jr_skill_salary_summary_sorted[:25]):
@@ -177,6 +177,7 @@ for skills, salary in zip(df_filtered[df_filtered['Seniority_Binary'] == 'senior
 sr_skill_salary_summary = {skill: (np.mean(salaries), np.median(salaries), np.std(salaries), len(salaries)) for skill, salaries in sr_skill_salary.items() if len(salaries) >= 2}
 sr_skill_salary_summary_sorted = sorted(sr_skill_salary_summary.items(), key=lambda x: x[1][0], reverse=True)
 
+print('\nSenior Level DS Skills and Salary Stats')
 print(f"{'No.':<5} {'Skill':<20} {'Mean Salary':<15} {'Median Salary':<15} {'Std Dev':<10} {'Count':<7}")
 print("-" * 80)
 for i, (skill, (mean_salary, median_salary, std_dev, count)) in enumerate(sr_skill_salary_summary_sorted[:25]):
@@ -231,7 +232,7 @@ pie_labels = big_ind.index
 pie_sizes = big_ind.values
 colors = plt.cm.tab20.colors[:len(pie_labels)]
 explode = [0.1 if size == big_ind['Other'] else 0 for size in pie_sizes]
-angle = -180*pie_sizes.min()
+angle = 180*(pie_sizes.min()/sum(pie_sizes))
 ## took me a while to understand this next part, but this will capture the slices from the .pie() call and junk the other outputs into var '_'.
 wedges, *_ = ax1.pie(pie_sizes, labels=pie_labels, autopct='%1.1f%%', startangle=angle, colors=colors, explode=explode)
 
@@ -280,3 +281,102 @@ con.set_linewidth(4)
 
 plt.show(block = False)
 input('Press Enter to exit...')
+
+## That ended up being a pretty good looking plot. We're seeing that tech dominates the field, followed by finance, retail, and healthcare.
+## What could explain this distribution? Tech would obviously be the industry most burdened with large datasets, so that makes sense.
+## Finance would also be a data-heavy industry, with the added pressure to derive valueable insights from data either for driving trade decisions,
+## risk management, fraud detection, or customer insights. Retail would also have a lot of data, especially e-commerce, and an interest in converting
+## that data into customer insights. Healthcare is interesting, becuase I would assume that it's representation here is more about the similar pressures
+## on the industry to the others listed (lots of data, lots of customers, high cost of operation drives an emphasis on cost reduction and efficiency),
+## rather than a belief among healthcare companies that data science has a major role to play in directing care or R&D.
+
+## Next, I'll take a look at which skills are most commonly requested by industry.
+industry_skill_counter = {industry: Counter() for industry in industries}
+for industry in industries:
+    for skills in df_filtered[df_filtered['industry'] == industry]['skills'].dropna():
+        skill_list = [skill.strip(" []'\"").lower() for skill in skills.split(',') if skill.strip(" []'\"")]
+        industry_skill_counter[industry].update(skill_list)
+most_common_industry_skills = {industry: counter.most_common(25) for industry, counter in industry_skill_counter.items()}
+for industry, skills in most_common_industry_skills.items():
+    print(f"\nMost common skills for {industry} industry:")
+    for skill, count in skills:
+        print(f"{skill}: {count}")
+
+## So, the most interesting thing I'm noticing here is Scala only appears as a top-ten skill in retail.
+## My suspicion is that it would show up more if we were looking at more than ten skills per industry. Let me take a look at that now...
+## Yup, when we look at the top 25 skills, Scala shows up in healthcare, tech, and energy as well.
+
+## Another intersting data point here is where we see deep learning as a major skill. This represents a real differentiation of the types
+## of data and insights sought by each industry. Retail, finance, tech, and healthcare all make sense here, as we can pretty easily intuit
+## the types of unstructured data (images, text, video, audio) that these industries would be handling, and how they might benefit from deep learning.
+
+## Although not as directly insightful at the scale of industry hiring trends, we can understand a difference in the types of roles being hired for
+## where we see skills like tableau and power bi. These are more business-intelligence focused skills, suggesting roles that are more focused
+## on presenting data insights to business stakeholders, rather than or in addition to building data products or automations.
+
+## Appart from that, we're mostly seeing the same skills and the same rankings for each industry.
+## The big takeaway here is probably that if you want to get a job as a data scientist you should know python, SQL, and machine learning.
+## Beyond that some familiarty with big data tools and infrastructure (Hadoop, Spark, AWS, etc.) is probably a good idea.
+## Depending on the role, some knowledge of deep learning and/or business intelligence tools might be useful as well.
+
+## Now I want to look at the association of company revenue and salary.
+## Like we did for salaries before, we'll need to clean up the revenues field using a custom function.
+
+def rev_clean(rev):
+         if pd.isna(rev):
+             return np.nan
+         if rev in ['Public', 'Private', 'Education', 'Nonprofit']:
+             return np.nan
+         rev = rev.replace('€', '').replace(',', '').strip()
+         if rev.endswith('B'):
+             return float(rev[:-1])
+         if rev.endswith('T'):
+             return float(rev[:-1])*1000
+         if rev.endswith('M'):
+             return float(rev[:-1])/1000
+
+## This will remove the € symbol and the trailing M, T, and B values while converting all values to floats (in billions of Euros).
+## Now we'll apply this to the revenues field.
+df_filtered.loc[:,'Cleaned_Revenue'] = df_filtered['revenue'].apply(rev_clean).astype(float)
+## Next, where both Cleaned_Salary and Cleaned_Revenue are not null, I'll create a scatterplot of the relationship between salary and revenue.
+## To do that, I need a version of the dataframe that only has records where both values are not null
+df_revclean = df_filtered.dropna(subset=['Cleaned_Revenue', 'Cleaned_Salary']).copy()
+## The cleaned revenues need to be in a 2D array for the .fit() and .score() functions
+X = df_revclean['Cleaned_Revenue'].values.reshape(-1,1)
+Y = df_revclean['Cleaned_Salary'].values
+## Next I'll create the scatter plot and plot a trend line. 
+from sklearn.linear_model import LinearRegression
+model = LinearRegression()
+model.fit(X, Y)
+## Get an R-squared value by predicting values based on trend line and compare to actual salaries.
+## Like with X above, rev_range needs to be a 2D array for .predict()
+rev_range = np.linspace(X.min(), X.max(), 100).reshape(-1,1)
+pred_sal = model.predict(rev_range)
+r_squared = model.score(X, Y)
+## creat the scatter plot and plot the trend line labeled with R-squared value
+fig, ax = plt.subplots(figsize = (8,6))
+ax.scatter(df_revclean['Cleaned_Revenue'], df_revclean['Cleaned_Salary'], color='teal', edgecolor='black', s=100)
+ax.plot(rev_range, pred_sal, color='darkorange', linewidth=2, label=f'Trend line (R-squared = {r_squared:.2f})')
+ax.grid(True)
+ax.legend()
+plt.title('Relationship of DS Salary to Company Revenue')
+plt.xlabel('Company Revenue (Billions of Euros)')
+plt.ylabel('Salary (Euros)')
+plt.tight_layout()
+plt.show(block=False)
+input('Press enter to exit...')
+
+## From this plot we see that company revenue is not at all a good predictor of DS role salaries. The smallest companies in terms of revenue
+## have some of the highest salaries in the dataset, and while the trend line suggests that bigger companies hire at slightly higher salaries,
+## the R-squared value tells us that this association is extremely weak in our dataset. This shows a couple of interesting things when taken
+## together with our previous insights: First, there are probably a good number of tech start-ups who are willing to pay a real premium for a 
+## skilled data science professional. Second, just because a company makes a lot of money, it does not mean that an applicant can expect a much
+## higher salary than they would receive from a smaller one. There is a clear pattern of higher variability among salaries at smaller companies,
+## so that may be an important point of consideration for the applicant.
+
+## I think I've basically dug into this data to the extent that I personally am interested in the insights I might derive.
+## This was a pretty interesting dataset, however, so maybe I would revisit this once I've learned some new skills or have some kind of
+## epiphany about a more complex analysis that would be of interest. Getting me to this point took somwhere in the 10-15 hour range.
+## Tools used: Python, git, GitHub, copilot, VSCode, Kaggle.
+## Specific libraries: matplotlib, seaborn, numpy, PANDAS, os, sys, scikit-learn
+## DS skills demonstrated: Python, git, statistics, linear regression, data ingestion, data cleaning/parsing, EDA, visualization, feature engineering.
